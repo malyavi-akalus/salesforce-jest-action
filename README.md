@@ -33,6 +33,36 @@ console output, which means:
   is caught, the report is written, and the failure is re-raised afterwards.
   Reversing that order is how a red run ends up with an empty comment.
 
+## Skipping when nothing relevant changed
+
+On a pull request, name the paths that can change the suite's result:
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+
+- uses: malyavi/salesforce-jest-action@v1
+  with:
+    paths: |
+      force-app/**/lwc/**
+      package.json
+      jest.config.js
+```
+
+When none of them changed against the pull request's base branch, the action
+installs nothing, runs nothing, reports `skipped` in the comment and the job
+summary, and passes. Include the configuration that changes what the suite
+does — `package.json`, `jest.config.js` — or a change to it will not be tested.
+
+Entries use git's glob matching, so `**` crosses directories as it does in a
+workflow's own `paths:` filter. An entry that starts with `:` is passed to git
+as written, which is how to exclude: `:(exclude)force-app/**/legacy/**`.
+
+The filter fails open: with no `paths`, no base branch (a push event), or a
+checkout too shallow to diff, the suite runs. The base branch has to be in the
+checkout, hence `fetch-depth: 0`.
+
 ## Reporting a run somebody else made
 
 If your runner takes flags this action does not predict, run it yourself and
@@ -66,6 +96,8 @@ results file" alone is not.
 | `coverage` | `false` | Whether to collect coverage. |
 | `results-file` | `jest-results.json` | Where the runner writes its JSON report, relative to the working directory. |
 | `test-outcome` | `unknown` | With `run: false`, the outcome of your own test step. |
+| `paths` | — | Git pathspecs that decide whether the suite runs. With none changed it is skipped and reported `skipped`. Empty always runs. |
+| `base-ref` | `origin/<PR base>` | What `paths` compares against. |
 | `install` | `true` | Whether to install dependencies first. |
 | `install-command` | `npm ci` | How to install them. |
 | `fail-on-error` | `true` | Whether a failing suite fails the run. |
@@ -83,10 +115,10 @@ results file" alone is not.
 
 | Output | What it holds |
 | --- | --- |
-| `outcome` | `passed` or `failed`. |
+| `outcome` | `passed`, `failed`, or `skipped` when `paths` matched no change. |
 | `tests-passed`, `tests-failed`, `tests-total`, `tests-skipped` | Counts from the run. |
 | `suites` | Suites the run covered. |
-| `results-path` | The JSON report, for a later step to upload as an artifact. |
+| `results-path` | The JSON report, for a later step to upload as an artifact. Empty when the run was skipped. |
 
 ## The shared comment
 

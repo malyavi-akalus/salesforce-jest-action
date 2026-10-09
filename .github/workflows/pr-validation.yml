@@ -129,3 +129,41 @@ jobs:
           fail() { echo "::error::$1"; exit 1; }
           [ "${{ steps.reported.outputs.outcome }}" = "passed" ] || fail "Reporting a passing results file should be 'passed', got '${{ steps.reported.outputs.outcome }}'."
           [ "${{ steps.reported.outputs.tests-passed }}" = "11" ] || fail "Expected the fixture's 11 passing tests, got '${{ steps.reported.outputs.tests-passed }}'."
+
+      # Nothing under the paths changed. `base-ref: HEAD` makes the diff empty
+      # whatever the checkout's depth, so the skip is proven without a second
+      # commit to compare against.
+      - name: Skip when nothing under the paths changed
+        id: skipped
+        uses: ./
+        with:
+          paths: no-such-dir/**
+          base-ref: HEAD
+          install: 'false'
+          comment: 'false'
+
+      - name: Check the skip
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "${{ steps.skipped.outputs.outcome }}" = "skipped" ] || fail "An unchanged filter should report 'skipped', got '${{ steps.skipped.outputs.outcome }}'."
+          [ "${{ steps.skipped.outputs.tests-total }}" = "0" ] || fail "A skipped run ran tests: '${{ steps.skipped.outputs.tests-total }}'."
+          [ -z "${{ steps.skipped.outputs.results-path }}" ] || fail "A skipped run has no results file to point at, got '${{ steps.skipped.outputs.results-path }}'."
+
+      # A diff that cannot be read must run the suite rather than skip it.
+      - name: Run the suite when the diff cannot be read
+        id: failopen
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/project
+          test-command: npx jest
+          separator: 'false'
+          install: 'false'
+          comment: 'false'
+          fail-on-error: 'false'
+          paths: no-such-dir/**
+          base-ref: no-such-ref
+
+      - name: Check that it failed open
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          [ "${{ steps.failopen.outputs.tests-total }}" = "2" ] || fail "An unreadable diff must run the suite; it reported '${{ steps.failopen.outputs.tests-total }}' tests."
