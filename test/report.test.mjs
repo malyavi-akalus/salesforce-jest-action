@@ -1,7 +1,7 @@
-import {readFileSync}                                       from 'node:fs';
-import {describe, it}                                       from 'node:test';
-import assert                                               from 'node:assert/strict';
-import {renderComment, renderMissingResults, renderSummary} from '../lib/report.mjs';
+import {readFileSync}                                                      from 'node:fs';
+import {describe, it}                                                      from 'node:test';
+import assert                                                              from 'node:assert/strict';
+import {renderComment, renderMissingResults, renderSkipped, renderSummary} from '../lib/report.mjs';
 
 /**
  * What a reader is told.
@@ -68,5 +68,14 @@ describe('renderMissingResults', () => {
     const comment = renderMissingResults({label: 'LWC Jest', outcome: 'success', path: 'x.json'});
     assert.match(comment, /produced no results file\./);
     assert.equal(comment.includes('outcome'), false);
+  });
+});
+
+describe('renderSkipped', () => {
+  it('says what was watched, so a reader can tell why nothing ran', () => {
+    assert.equal(
+      renderSkipped({label: 'LWC Jest', paths: ['force-app/**/lwc/**', 'package.json']}),
+      ':fast_forward: **LWC Jest skipped**: no changes under `force-app/**/lwc/**`, `package.json`'
+    );
   });
 });

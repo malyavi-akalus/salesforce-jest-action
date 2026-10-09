@@ -1,6 +1,6 @@
-import {afterEach, describe, it} from 'node:test';
-import assert                    from 'node:assert/strict';
-import {resolveConfig, testArgs} from '../lib/config.mjs';
+import {afterEach, describe, it}                                          from 'node:test';
+import assert                                                             from 'node:assert/strict';
+import {globPathspec, resolveBaseRef, resolveConfig, shouldRun, testArgs} from '../lib/config.mjs';
 
 /**
  * The inputs, and the one piece of argument assembly that is easy to get wrong.
@@ -24,6 +24,11 @@ describe('resolveConfig', () => {
     assert.equal(config.resultsFile, 'jest-results.json');
     assert.equal(config.failOnError, true);
     assert.equal(config.section, 'jest');
+  });
+
+  it('reads the paths filter as a comma- or newline-separated list', () => {
+    process.env.INPUT_PATHS = 'force-app/**/lwc/**\npackage.json, jest.config.js';
+    assert.deepEqual(resolveConfig().paths, ['force-app/**/lwc/**', 'package.json', 'jest.config.js']);
   });
 
   it('resolves the results path against the working directory', () => {
@@ -76,5 +81,60 @@ describe('testArgs', () => {
 
   it('names the results file the caller chose', () => {
     assert.match(testArgs({...base, resultsFile: 'out/j.json'}).at(-1), /--outputFile=out\/j\.json$/);
+  });
+});
+
+describe('resolveBaseRef', () => {
+  afterEach(() => {
+    delete process.env.GITHUB_BASE_REF;
+  });
+
+  it('takes the pull request\'s base branch from the event', () => {
+    process.env.GITHUB_BASE_REF = 'main';
+    assert.equal(resolveBaseRef(), 'origin/main');
+  });
+
+  it('prefers the caller\'s own ref', () => {
+    process.env.GITHUB_BASE_REF = 'main';
+    process.env.INPUT_BASE_REF = 'origin/release';
+    assert.equal(resolveBaseRef(), 'origin/release');
+  });
+
+  it('is empty on an event with no base branch, such as a push', () => {
+    assert.equal(resolveBaseRef(), '');
+  });
+});
+
+describe('shouldRun', () => {
+  const filtered = {run: true, paths: ['force-app/**/lwc/**']};
+
+  it('skips when nothing under the paths changed', () => {
+    assert.equal(shouldRun(filtered, []), false);
+  });
+
+  it('runs when something under the paths changed', () => {
+    assert.equal(shouldRun(filtered, ['force-app/main/default/lwc/a/a.js']), true);
+  });
+
+  it('runs with no filter, however little changed', () => {
+    assert.equal(shouldRun({run: true, paths: []}, []), true);
+  });
+
+  it('runs when the diff could not be read, rather than let a red suite through unchecked', () => {
+    assert.equal(shouldRun(filtered, null), true);
+  });
+
+  it('never skips a report-only run, which has no suite to skip', () => {
+    assert.equal(shouldRun({run: false, paths: filtered.paths}, []), true);
+  });
+});
+
+describe('globPathspec', () => {
+  it('asks git for glob matching, so ** can cross zero directories', () => {
+    assert.equal(globPathspec('force-app/**/lwc/**'), ':(glob)force-app/**/lwc/**');
+  });
+
+  it('leaves an entry that carries its own magic alone', () => {
+    assert.equal(globPathspec(':(exclude)force-app/**/legacy/**'), ':(exclude)force-app/**/legacy/**');
   });
 });

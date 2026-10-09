@@ -33,6 +33,44 @@ console output, which means:
   is caught, the report is written, and the failure is re-raised afterwards.
   Reversing that order is how a red run ends up with an empty comment.
 
+## Skipping when nothing relevant changed
+
+On a pull request the action only runs the suite when something that can change
+its result has changed. By default that is the LWC sources and the Jest
+configuration; the base branch has to be in the checkout, hence `fetch-depth: 0`:
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+
+- uses: malyavi/salesforce-jest-action@v1
+```
+
+To watch other paths, set `paths`. This is the default:
+
+```yaml
+- uses: malyavi/salesforce-jest-action@v1
+  with:
+    paths: |
+      force-app/**/lwc/**
+      package.json
+      jest.config.js
+```
+
+When none of them changed against the pull request's base branch, the action
+installs nothing, runs nothing, reports `skipped` in the comment and the job
+summary, and passes. Keep the configuration that changes what the suite does —
+`package.json`, `jest.config.js` — in the list, or a change to it will not be
+tested. To run on every change, set `paths: '**'`.
+
+Entries use git's glob matching, so `**` crosses directories as it does in a
+workflow's own `paths:` filter. An entry that starts with `:` is passed to git
+as written, which is how to exclude: `:(exclude)force-app/**/legacy/**`.
+
+The filter fails open: with no base branch (a push event), or a checkout too
+shallow to diff, the suite runs.
+
 ## Reporting a run somebody else made
 
 If your runner takes flags this action does not predict, run it yourself and
@@ -66,6 +104,8 @@ results file" alone is not.
 | `coverage` | `false` | Whether to collect coverage. |
 | `results-file` | `jest-results.json` | Where the runner writes its JSON report, relative to the working directory. |
 | `test-outcome` | `unknown` | With `run: false`, the outcome of your own test step. |
+| `paths` | `force-app/**/lwc/**`, `package.json`, `jest.config.js` | Git pathspecs that decide whether the suite runs. With none changed it is skipped and reported `skipped`. `**` runs on every change. |
+| `base-ref` | `origin/<PR base>` | What `paths` compares against. |
 | `install` | `true` | Whether to install dependencies first. |
 | `install-command` | `npm ci` | How to install them. |
 | `fail-on-error` | `true` | Whether a failing suite fails the run. |
@@ -83,10 +123,10 @@ results file" alone is not.
 
 | Output | What it holds |
 | --- | --- |
-| `outcome` | `passed` or `failed`. |
+| `outcome` | `passed`, `failed`, or `skipped` when `paths` matched no change. |
 | `tests-passed`, `tests-failed`, `tests-total`, `tests-skipped` | Counts from the run. |
 | `suites` | Suites the run covered. |
-| `results-path` | The JSON report, for a later step to upload as an artifact. |
+| `results-path` | The JSON report, for a later step to upload as an artifact. Empty when the run was skipped. |
 
 ## The shared comment
 

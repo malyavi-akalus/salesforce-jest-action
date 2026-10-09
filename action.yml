@@ -48,6 +48,25 @@ inputs:
       of the step that ran it — so a missing results file can be explained.
     required: false
     default: unknown
+  paths:
+    description: >-
+      Git pathspecs, comma- or newline-separated, that decide whether the suite
+      runs. When none of them changed against `base-ref` the run is skipped and
+      reported as `skipped`, without installing or running anything. The default
+      is the LWC sources and the Jest configuration; set `**` to run on every
+      change. Needs the base branch in the checkout (`fetch-depth: 0`); a diff
+      that cannot be read runs the suite instead.
+    required: false
+    default: |-
+      force-app/**/lwc/**
+      package.json
+      jest.config.js
+  base-ref:
+    description: >-
+      Ref the `paths` filter compares against. Defaults to `origin/<the pull
+      request's base branch>`; with neither, the filter is ignored.
+    required: false
+    default: ''
   install:
     description: Whether to install dependencies before running.
     required: false
@@ -105,7 +124,7 @@ inputs:
 
 outputs:
   outcome:
-    description: '`passed` or `failed`.'
+    description: '`passed`, `failed`, or `skipped` when `paths` matched no change.'
     value: ${{ steps.jest.outputs.outcome }}
   tests-passed:
     description: Tests that passed.
@@ -142,6 +161,8 @@ runs:
         INPUT_COVERAGE: ${{ inputs.coverage }}
         INPUT_RESULTS_FILE: ${{ inputs.results-file }}
         INPUT_TEST_OUTCOME: ${{ inputs.test-outcome }}
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
         INPUT_INSTALL: ${{ inputs.install }}
         INPUT_INSTALL_COMMAND: ${{ inputs.install-command }}
         INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}

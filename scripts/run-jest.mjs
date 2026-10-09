@@ -1,10 +1,10 @@
-import {commentConfig, updateCommentSection}                from '../lib/comment.mjs';
-import {resolveConfig, testArgs}                            from '../lib/config.mjs';
-import {error, setOutput, summary, warn}                    from '../lib/core.mjs';
-import {runCommandLine}                                     from '../lib/exec.mjs';
-import {failureMessage}                                     from '../lib/inputs.mjs';
-import {renderComment, renderMissingResults, renderSummary} from '../lib/report.mjs';
-import {readResults, summarize}                             from '../lib/results.mjs';
+import {commentConfig, updateCommentSection}                               from '../lib/comment.mjs';
+import {globPathspec, resolveConfig, shouldRun, testArgs}                  from '../lib/config.mjs';
+import {error, setOutput, summary, warn}                                   from '../lib/core.mjs';
+import {changedPaths, runCommandLine}                                      from '../lib/exec.mjs';
+import {failureMessage}                                                    from '../lib/inputs.mjs';
+import {renderComment, renderMissingResults, renderSkipped, renderSummary} from '../lib/report.mjs';
+import {readResults, summarize}                                            from '../lib/results.mjs';
 
 /**
  * Runs a Jest suite and reports it: as this job's verdict, as a section of the
@@ -24,6 +24,15 @@ import {readResults, summarize}                             from '../lib/results
 async function main() {
   const config = resolveConfig();
   const comment = commentConfig();
+
+  if (!shouldRun(config, await changesUnderPaths(config))) {
+    console.log(`Nothing under ${config.paths.join(', ')} changed; skipping the suite.`);
+    await updateCommentSection(config.section, renderSkipped(config), comment);
+    await summary(`## :fast_forward: ${config.label} skipped\n\nNo changes under ${config.paths.join(', ')}.`);
+    // No results file exists to point at, and an upload step reading one would fail.
+    await publish({outcome: 'skipped', results: null, resultsPath: ''});
+    return;
+  }
 
   let outcome = config.testOutcome;
   if (config.run) {
@@ -62,6 +71,32 @@ async function main() {
     } else {
       warn(`${message} \`fail-on-error\` is off, so this does not fail the run.`);
     }
+  }
+}
+
+/**
+ * The changed paths that match the `paths` filter, read from git.
+ *
+ * Null rather than an empty list when there is nothing to compare, or the
+ * comparison failed — typically a shallow checkout that lacks the base — so
+ * that `shouldRun` can tell "nothing changed" from "could not tell".
+ *
+ * @param {object} config Resolved configuration
+ * @return {Promise<string[]|null>} Matching changed paths, or null when they could not be determined
+ */
+async function changesUnderPaths(config) {
+  if (!config.run || config.paths.length === 0 || !config.baseRef) {
+    return null;
+  }
+  try {
+    const pathspecs = config.paths.map(globPathspec);
+    return await changedPaths(config.baseRef, 'HEAD', pathspecs, {cwd: config.cwd, relative: true});
+  } catch (thrown) {
+    warn(
+      `Could not diff against ${config.baseRef} (${thrown.message}); running the suite. ` +
+      'The `paths` filter needs the base branch in the checkout — use `fetch-depth: 0`.'
+    );
+    return null;
   }
 }
 
