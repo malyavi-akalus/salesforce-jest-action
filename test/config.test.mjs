@@ -1,6 +1,6 @@
 import {afterEach, describe, it}                                          from 'node:test';
 import assert                                                             from 'node:assert/strict';
-import {globPathspec, resolveBaseRef, resolveConfig, shouldRun, testArgs} from '../lib/config.mjs';
+import {DEFAULT_PATHS, globPathspec, resolveBaseRef, resolveConfig, shouldRun, testArgs} from '../lib/config.mjs';
 
 /**
  * The inputs, and the one piece of argument assembly that is easy to get wrong.
@@ -24,7 +24,7 @@ describe('resolveConfig', () => {
     assert.equal(config.resultsFile, 'jest-results.json');
     assert.equal(config.failOnError, true);
     assert.equal(config.section, 'jest');
-    assert.deepEqual(config.paths, []);
+    assert.deepEqual(config.paths, DEFAULT_PATHS);
   });
 
   it('reads the paths filter as a comma- or newline-separated list', () => {

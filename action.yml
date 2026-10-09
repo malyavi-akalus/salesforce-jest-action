@@ -52,11 +52,15 @@ inputs:
     description: >-
       Git pathspecs, comma- or newline-separated, that decide whether the suite
       runs. When none of them changed against `base-ref` the run is skipped and
-      reported as `skipped`, without installing or running anything. Empty runs
-      the suite every time. Needs the base branch in the checkout
-      (`fetch-depth: 0`); a diff that cannot be read runs the suite instead.
+      reported as `skipped`, without installing or running anything. The default
+      is the LWC sources and the Jest configuration; set `**` to run on every
+      change. Needs the base branch in the checkout (`fetch-depth: 0`); a diff
+      that cannot be read runs the suite instead.
     required: false
-    default: ''
+    default: |-
+      force-app/**/lwc/**
+      package.json
+      jest.config.js
   base-ref:
     description: >-
       Ref the `paths` filter compares against. Defaults to `origin/<the pull
