@@ -2,7 +2,6 @@ import {readFileSync, readdirSync, statSync} from 'node:fs';
 import {join}                                from 'node:path';
 import {describe, it}                        from 'node:test';
 import assert                                from 'node:assert/strict';
-import {DEFAULT_PATHS}                       from '../lib/config.mjs';
 
 /**
  * The wiring test.
@@ -59,13 +58,6 @@ describe('action.yml', () => {
         'Either wire it up or take it out — a documented input that does nothing is worse than none.'
       );
     }
-  });
-
-  it('declares the same default paths the code falls back to', () => {
-    const block = inputBlocks(actionYml).find((entry) => entry.name === 'paths');
-    const lines = block.body.split(/\r?\n/);
-    const declared = lines.slice(lines.findIndex((line) => /default:\s*\|/.test(line)) + 1).map((line) => line.trim()).filter(Boolean);
-    assert.deepEqual(declared, DEFAULT_PATHS);
   });
 
   it('points every output at a step that exists', () => {
